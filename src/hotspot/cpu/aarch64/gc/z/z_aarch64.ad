@@ -104,7 +104,7 @@ static void z_store_barrier(MacroAssembler* masm, const MachNode* node, Address 
 instruct zLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
 %{
   match(Set dst (LoadP mem));
-  predicate(UseZGC && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  predicate(UseZGC && !UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
   effect(TEMP dst, KILL cr);
 
   ins_cost(4 * INSN_COST);
@@ -130,7 +130,7 @@ instruct zLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
 instruct zLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, rFlagsReg cr)
 %{
   match(Set dst (LoadP mem));
-  predicate(UseZGC && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  predicate(UseZGC && !UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
   effect(TEMP dst, KILL cr);
 
   ins_cost(VOLATILE_REF_COST);
