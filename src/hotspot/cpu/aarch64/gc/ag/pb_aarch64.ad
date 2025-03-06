@@ -1,0 +1,129 @@
+//
+// Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+// DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+//
+// This code is free software; you can redistribute it and/or modify it
+// under the terms of the GNU General Public License version 2 only, as
+// published by the Free Software Foundation.
+//
+// This code is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+// version 2 for more details (a copy is included in the LICENSE file that
+// accompanied this code).
+//
+// You should have received a copy of the GNU General Public License version
+// 2 along with this work; if not, write to the Free Software Foundation,
+// Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+//
+// Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
+// or visit www.oracle.com if you need additional information or have any
+// questions.
+//
+
+source_hpp %{
+
+#include "gc/shared/gc_globals.hpp"
+#include "gc/z/c2/zBarrierSetC2.hpp"
+#include "gc/z/zThreadLocalData.hpp"
+#include "gc/shared/c2/patchingBarrierSetC2.hpp"
+
+%}
+
+source %{
+
+#include "gc/z/zBarrierSetAssembler.hpp"
+
+static void pb_uncolor(MacroAssembler* masm, const MachNode* node, Register ref) {
+  __ lsr(ref, ref, ZPointerLoadShift);
+}
+
+static void pb_keep_alive_load_barrier(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+  __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatMarkBadBeforeMov);
+  __ movzw(tmp, barrier_Relocation::unpatched);
+  __ tst(ref, tmp);
+  ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
+  __ br(Assembler::NE, *stub->entry());
+  pb_uncolor(masm, node, ref);
+  __ bind(*stub->continuation());
+}
+
+static void pb_load_barrier(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+  Assembler::InlineSkippedInstructionsCounter skipped_counter(masm);
+  const bool on_non_strong =
+      ((node->barrier_data() & PatchingBarrierWeak) != 0) ||
+      ((node->barrier_data() & PatchingBarrierPhantom) != 0);
+
+  if (on_non_strong) {
+    pb_keep_alive_load_barrier(masm, node, ref_addr, ref, tmp);
+    return;
+  }
+
+  ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref, __ offset());
+  if (stub->is_test_and_branch_reachable()) {
+    __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodBeforeTbX);
+    __ tbnz(ref, barrier_Relocation::unpatched, *stub->entry());
+  } else {
+    Label good;
+    __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodBeforeTbX);
+    __ tbz(ref, barrier_Relocation::unpatched, good);
+    __ b(*stub->entry());
+    __ bind(good);
+  }
+  pb_uncolor(masm, node, ref);
+  __ bind(*stub->continuation());
+}
+
+%}
+
+// Load Pointer
+instruct pbLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
+%{
+  match(Set dst (LoadP mem));
+  predicate(UseZGC && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  effect(TEMP dst, KILL cr);
+
+  ins_cost(4 * INSN_COST);
+
+  format %{ "ldr  $dst, $mem" %}
+
+  ins_encode %{
+    Address ref_addr = mem2address($mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+    if (ref_addr.getMode() == Address::base_plus_offset) {
+      // Fix up any out-of-range offsets.
+      assert_different_registers(rscratch2, as_Register($mem$$base));
+      assert_different_registers(rscratch2, $dst$$Register);
+      ref_addr = __ legitimize_address(ref_addr, 8, rscratch2);
+    }
+    __ ldr($dst$$Register, ref_addr);
+    __ block_comment("pb load start");
+    pb_load_barrier(masm, this, ref_addr, $dst$$Register, rscratch1);
+    __ block_comment("pb load end");
+  %}
+
+  ins_pipe(iload_reg_mem);
+%}
+
+// Load Pointer Volatile
+instruct pbLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, rFlagsReg cr)
+%{
+  match(Set dst (LoadP mem));
+  predicate(UseZGC && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  effect(TEMP dst, KILL cr);
+
+  ins_cost(VOLATILE_REF_COST);
+
+  format %{ "ldar  $dst, $mem\t" %}
+
+  ins_encode %{
+    const Address ref_addr = Address($mem$$Register);
+    __ ldar($dst$$Register, $mem$$Register);
+    __ block_comment("pb volatile load start");
+    pb_load_barrier(masm, this, ref_addr, $dst$$Register, rscratch1);
+    __ block_comment("pb volatile load end");
+  %}
+
+  ins_pipe(pipe_serial);
+%}
+
+

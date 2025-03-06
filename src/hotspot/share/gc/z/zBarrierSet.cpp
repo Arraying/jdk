@@ -40,7 +40,7 @@
 #include "gc/z/c1/zBarrierSetC1.hpp"
 #endif
 #ifdef COMPILER2
-#include "gc/z/c2/zBarrierSetC2.hpp"
+#include "gc/shared/c2/agnosticBarriersC2.hpp"
 #endif
 
 class ZBarrierSetC1;
@@ -49,7 +49,7 @@ class ZBarrierSetC2;
 ZBarrierSet::ZBarrierSet()
   : BarrierSet(make_barrier_set_assembler<ZBarrierSetAssembler>(),
                make_barrier_set_c1<ZBarrierSetC1>(),
-               make_barrier_set_c2<ZBarrierSetC2>(),
+               make_barrier_set_c2<PossiblyAgnosticZBarrierSetC2>(),
                new ZBarrierSetNMethod(),
                new ZBarrierSetStackChunk(),
                BarrierSet::FakeRtti(BarrierSet::ZBarrierSet)) {}
