@@ -850,6 +850,12 @@ static uint16_t patch_barrier_relocation_value(int format) {
   case ZBarrierRelocationFormatStoreBadBeforeMov:
     return (uint16_t)ZPointerStoreBadMask;
 
+  case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
+    return (uint16_t)exact_log2(ZPointerRemapped); 
+  
+  case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
+    return (uint16_t)ZPointerMarkBadMask;
+
   default:
     ShouldNotReachHere();
     return 0;
@@ -860,6 +866,13 @@ static void change_immediate(uint32_t& instr, uint32_t imm, uint32_t start, uint
   uint32_t imm_mask = ((1u << start) - 1u) ^ ((1u << (end + 1)) - 1u);
   instr &= ~imm_mask;
   instr |= imm << start;
+}
+
+// Changes all but the 5 destination register.
+static void change_instruction(uint32_t& instr, uint32_t msb) {
+  uint32_t registers = instr & 0x1fu; // last 5 bits.
+  instr = msb;
+  instr |= registers;
 }
 
 void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
@@ -873,6 +886,22 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
   case ZBarrierRelocationFormatStoreGoodBeforeMov:
   case ZBarrierRelocationFormatMarkBadBeforeMov:
   case ZBarrierRelocationFormatStoreBadBeforeMov:
+    change_immediate(*patch_addr, value, 5, 20);
+    break;
+  case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
+    // Patch the TBNZ to use a different address register (ZR) for non-ZGC.
+    // On ZGC the value to be patched is the immediate.
+    //change_immediate(*patch_addr, value, 19, 23);
+    // THIS IS WHAT SERIAL AND PARALLEL NEED TO DO:
+    change_immediate(*patch_addr, 31u, 0, 4);
+    break;
+  case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
+    // Effectively changes from a mov tmpRegister, addressRegister to a mov tmpRegister, immediate.
+    // These are encoded as different instructions on aarch64, so the whole upper instruction has to be changed.
+    change_instruction(*patch_addr, 0x52800000u);
+    // Patch the MOV to move an immediate instead of a register.
+    // The value to be patched is the immediate. Re-use the stored register.
+    // This only updates the actual immediate.
     change_immediate(*patch_addr, value, 5, 20);
     break;
   default:

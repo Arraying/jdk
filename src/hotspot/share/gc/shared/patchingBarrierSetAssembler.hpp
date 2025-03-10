@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, Red Hat Inc. All rights reserved.
+ * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,28 +19,16 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
- *
  */
 
-#ifndef CPU_AARCH64_RELOCINFO_AARCH64_HPP
-#define CPU_AARCH64_RELOCINFO_AARCH64_HPP
+#ifndef SHARE_GC_SHARED_PATCHINGBARRIERSETASSEMBLER_HPP
+#define SHARE_GC_SHARED_PATCHINGBARRIERSETASSEMBLER_HPP
 
-  // machine-dependent parts of class relocInfo
- private:
-  enum {
-    // AArch64 instructions are always 4 bytes long and 4-aligned, so
-    // the two lowest offset bits can always be discarded.
-    offset_unit        =  4,
-    // Must be at least 1 for RelocInfo::narrow_oop_in_const.
-    // Must be at least 2 for ZGC GC barrier patching.
-    // Must be at least 3 to support GC agnostic barriers.
-    format_width       =  3
-  };
+#include "utilities/macros.hpp"
 
- public:
+//const int PatchingBarrierRelocationFormatLoadGoodBeforeMov  = 4; // strong, used to be TbX
+//const int PatchingBarrierRelocationFormatMarkBadBeforeMov   = 5; // weak
 
-  // This platform has no oops in the code that are not also
-  // listed in the oop section.
-  static bool mustIterateImmediateOopsInCode() { return false; }
+#include CPU_HEADER(gc/shared/patchingBarrierSetAssembler)
 
-#endif // CPU_AARCH64_RELOCINFO_AARCH64_HPP
+#endif // SHARE_GC_SHARED_PATCHINGBARRIERSETASSEMBLER_HPP
