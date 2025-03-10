@@ -33,12 +33,18 @@ source_hpp %{
 source %{
 
 #include "gc/z/zBarrierSetAssembler.hpp"
+#include "gc/shared/patchingBarrierSetAssembler.hpp"
 
 static void pb_uncolor(MacroAssembler* masm, const MachNode* node, Register ref) {
   __ lsr(ref, ref, ZPointerLoadShift);
 }
 
 static void pb_keep_alive_load_barrier(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+  __ block_comment("weak patched barrier start");
+  __ block_comment("here we are mocking a ZGC patch");
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatMarkBadBeforeMov);
+  __ mov(tmp, ref);
+  __ block_comment("weak patched barrier end");
   __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatMarkBadBeforeMov);
   __ movzw(tmp, barrier_Relocation::unpatched);
   __ tst(ref, tmp);
@@ -61,6 +67,13 @@ static void pb_load_barrier(MacroAssembler* masm, const MachNode* node, Address 
 
   ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref, __ offset());
   if (stub->is_test_and_branch_reachable()) {
+    __ block_comment("strong patched barrier start");
+    __ block_comment("here we are mocking S, P, G1");
+    __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatLoadGoodBeforeTbX);
+    // S, P, G1 will patch this ref to xzr. 
+    // Z will patch the imm14 to the correct mask.
+    __ tbnz(ref, barrier_Relocation::unpatched, *stub->entry());
+    __ block_comment("strong patched barrier end");
     __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodBeforeTbX);
     __ tbnz(ref, barrier_Relocation::unpatched, *stub->entry());
   } else {
@@ -96,9 +109,7 @@ instruct pbLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
       ref_addr = __ legitimize_address(ref_addr, 8, rscratch2);
     }
     __ ldr($dst$$Register, ref_addr);
-    __ block_comment("pb load start");
     pb_load_barrier(masm, this, ref_addr, $dst$$Register, rscratch1);
-    __ block_comment("pb load end");
   %}
 
   ins_pipe(iload_reg_mem);

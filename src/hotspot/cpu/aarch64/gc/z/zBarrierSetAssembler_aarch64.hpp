@@ -52,6 +52,9 @@ const int ZBarrierRelocationFormatLoadGoodBeforeTbX  = 0;
 const int ZBarrierRelocationFormatMarkBadBeforeMov   = 1;
 const int ZBarrierRelocationFormatStoreGoodBeforeMov = 2;
 const int ZBarrierRelocationFormatStoreBadBeforeMov  = 3;
+const int PatchingBarrierRelocationFormatLoadGoodBeforeTbX  = 4; // strong, used to be TbX
+const int PatchingBarrierRelocationFormatMarkBadBeforeMov   = 5; // weak
+
 
 class ZBarrierSetAssembler : public ZBarrierSetAssemblerBase {
 public:
