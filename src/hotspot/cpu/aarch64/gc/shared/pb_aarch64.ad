@@ -35,6 +35,7 @@ source %{
 #include "gc/g1/g1BarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
 #include "gc/shared/patchingBarrierSetAssembler.hpp"
+#include "gc/shared/patchingBarrierRelocation.hpp"
 
 static void pb_uncolor(MacroAssembler* masm, const MachNode* node, Register ref) {
   __ lsr(ref, ref, ZPointerLoadShift);
@@ -113,8 +114,8 @@ static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address r
   Label good;
   // We have to check if we need to do any fixups in ZGC. This should be a no-op for the other GCs.
   // tbz xzr, #imm, good
-  // The relocation indicates to ZGC to patch the register to ref and the immediate to the correct mask.
-  __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatLoadGoodBeforeTbX);
+  // The relocation indicates to ZGC to patch the immediate to the correct mask.
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatLoadGoodBeforeTbX);
   __ tbz(ref, barrier_Relocation::unpatched, good);
   // At this point, we need to do some fixups and take the ZGC slow path.
   __ b(*stub->entry());
