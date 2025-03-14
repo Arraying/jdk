@@ -45,6 +45,7 @@
 #ifdef COMPILER2
 #include "gc/z/c2/zBarrierSetC2.hpp"
 #include "opto/output.hpp"
+#include "gc/shared/patchingBarrierRelocation.hpp"
 #endif // COMPILER2
 
 #ifdef PRODUCT
