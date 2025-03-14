@@ -24,6 +24,7 @@
 
 #include "precompiled.hpp"
 #include "compiler/compilerDefinitions.inline.hpp"
+#include "gc/shared/c2/agnosticBarriersC2.hpp"
 #include "gc/shared/cardTable.hpp"
 #include "gc/shared/cardTableBarrierSet.inline.hpp"
 #include "gc/shared/cardTableBarrierSetAssembler.hpp"
@@ -66,7 +67,7 @@ CardTableBarrierSet::CardTableBarrierSet(BarrierSetAssembler* barrier_set_assemb
 CardTableBarrierSet::CardTableBarrierSet(CardTable* card_table) :
   ModRefBarrierSet(make_barrier_set_assembler<CardTableBarrierSetAssembler>(),
                    make_barrier_set_c1<CardTableBarrierSetC1>(),
-                   make_barrier_set_c2<CardTableBarrierSetC2>(),
+                   make_barrier_set_c2<PossiblyAgnosticCardTableBarrierSetC2>(),
                    BarrierSet::FakeRtti(BarrierSet::CardTableBarrierSet)),
   _defer_initial_card_mark(false),
   _card_table(card_table)
