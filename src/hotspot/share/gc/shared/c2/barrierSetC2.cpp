@@ -87,6 +87,7 @@ static BarrierSetC2State* barrier_set_state() {
 }
 
 RegMask& BarrierStubC2::live() const {
+  assert(barrier_set_state(), "barrier state cannot be null");
   return *barrier_set_state()->live(_node);
 }
 

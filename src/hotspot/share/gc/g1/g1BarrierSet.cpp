@@ -30,6 +30,7 @@
 #include "gc/g1/g1RegionPinCache.inline.hpp"
 #include "gc/g1/g1SATBMarkQueueSet.hpp"
 #include "gc/g1/g1ThreadLocalData.hpp"
+#include "gc/shared/c2/agnosticBarriersC2.hpp"
 #include "gc/shared/satbMarkQueue.hpp"
 #include "logging/log.hpp"
 #include "oops/access.inline.hpp"
@@ -52,7 +53,7 @@ class G1BarrierSetC2;
 G1BarrierSet::G1BarrierSet(G1CardTable* card_table) :
   CardTableBarrierSet(make_barrier_set_assembler<G1BarrierSetAssembler>(),
                       make_barrier_set_c1<G1BarrierSetC1>(),
-                      make_barrier_set_c2<G1BarrierSetC2>(),
+                      make_barrier_set_c2<PossiblyAgnosticG1BarrierSetC2>(),
                       card_table,
                       BarrierSet::FakeRtti(BarrierSet::G1BarrierSet)),
   _satb_mark_queue_buffer_allocator("SATB Buffer Allocator", G1SATBBufferSize),

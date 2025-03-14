@@ -872,6 +872,7 @@ static void change_immediate(uint32_t& instr, uint32_t imm, uint32_t start, uint
 static void change_instruction(uint32_t& instr, uint32_t msb) {
   uint32_t registers = instr & 0x1fu; // last 5 bits.
   instr = msb;
+  instr &= ~31u; // (1 << 5) - 1
   instr |= registers;
 }
 
@@ -889,7 +890,7 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     change_immediate(*patch_addr, value, 5, 20);
     break;
   case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
-    // Patch the TBNZ to use a different address register (ZR) for non-ZGC.
+    // Patch the TB(N)Z to use a different address register (ZR) for non-ZGC.
     // On ZGC the value to be patched is the immediate.
     //change_immediate(*patch_addr, value, 19, 23);
     // THIS IS WHAT SERIAL AND PARALLEL NEED TO DO:
