@@ -32,7 +32,6 @@ source_hpp %{
 
 source %{
 
-#include "gc/g1/g1BarrierSetAssembler.hpp"
 #include "gc/z/zBarrierSetAssembler.hpp"
 #include "gc/shared/patchingBarrierSetAssembler.hpp"
 #include "gc/shared/patchingBarrierRelocation.hpp"
@@ -92,15 +91,19 @@ static void pb_load_barrier(MacroAssembler* masm, const MachNode* node, Address 
 static void pb_load_weak(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
   // Exclude the barrier code from the instruction counter heuristic.
   Assembler::InlineSkippedInstructionsCounter skipped_counter(masm);
-  // TODO: ZGC weak load right now.
-  assert(false, "cannot generate weak loads right now");
-  __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatMarkBadBeforeMov);
-  __ movzw(tmp, barrier_Relocation::unpatched);
+  __ block_comment("pb_load_weak START");
+  // First, we determine where the SATB value will be in memory in G1. We will override this in all other GC.
+  Address in_progress(rthread, in_bytes(G1ThreadLocalData::satb_mark_queue_active_offset()));
+  // We now write the instruction that loads the memory into the buffer. Technically this is a mov for most GC,
+  // although we write a ldrb (G1 default). This makes life a little bit easier.
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatMarkBadBeforeMov);
+  __ ldrb(tmp, in_progress);
   __ tst(ref, tmp);
   ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
   __ br(Assembler::NE, *stub->entry());
   // WARN: remove.
-  // pb_uncolor(masm, node, ref);
+  pb_uncolor(masm, node, ref);
+  __ block_comment("pb_load_weak END");
   __ bind(*stub->continuation());
 }
 
@@ -121,7 +124,7 @@ static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address r
   __ b(*stub->entry());
   __ bind(good);  
   // WARN: remove.
-  // pb_uncolor(masm, node, ref);
+  pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_strong END");
   __ bind(*stub->continuation());
 }
@@ -134,11 +137,9 @@ static void pb_dispatch(MacroAssembler* masm, const MachNode* node, Address ref_
       ((node->barrier_data() & PatchingBarrierPhantom) != 0);
   if (on_non_strong) {
     // Weak load barrier.
-    __ block_comment("writing weak variant");
     pb_load_weak(masm, node, ref_addr, ref, tmp);
   } else {
     // Strong load barrier.
-    __ block_comment("writing strong variant");
     pb_load_strong(masm, node, ref_addr, ref, tmp);
   }
 }
@@ -202,9 +203,7 @@ instruct g1PBLoadNCVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNo
   ins_encode %{
     const Address ref_addr = Address($mem$$Register);
     __ ldrw($dst$$Register, $mem$$Register);
-    __ block_comment("we have a loadP here");
     pb_dispatch(masm, this, ref_addr, $dst$$Register, rscratch1);
-    __ block_comment("end loadP here");
   %}
   ins_pipe(iload_reg_mem);
 %}

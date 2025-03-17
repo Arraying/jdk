@@ -25,9 +25,24 @@
 #define SHARE_GC_SHARED_PATCHINGBARRIERSETASSEMBLER_HPP
 
 #include "utilities/macros.hpp"
+#include "memory/allStatic.hpp"
+#include "asm/macroAssembler.hpp"
+#include "gc/g1/g1BarrierSetAssembler.hpp"
+#include "gc/z/zBarrierSetAssembler.hpp"
 
-//const int PatchingBarrierRelocationFormatLoadGoodBeforeMov  = 4; // strong, used to be TbX
-//const int PatchingBarrierRelocationFormatMarkBadBeforeMov   = 5; // weak
+// Workaround to copy labels around without issue.
+struct PatchingBarrierSlowPathPackage {
+  Label* _g1_continuation;
+  Label* _z_continuation;
+};
+
+class PatchingBarrierSetAssembler : AllStatic {
+public:
+  static PatchingBarrierSlowPathPackage slow_path_c2(MacroAssembler* masm,
+                                                     const MachNode* node,
+                                                     Address ref_addr,
+                                                     Register ref);
+};
 
 #include CPU_HEADER(gc/shared/patchingBarrierSetAssembler)
 
