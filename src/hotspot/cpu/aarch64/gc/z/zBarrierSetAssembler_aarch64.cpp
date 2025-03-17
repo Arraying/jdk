@@ -853,8 +853,9 @@ static uint16_t patch_barrier_relocation_value(int format) {
 
   case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
     return (uint16_t)exact_log2(ZPointerRemapped); 
-  
-  case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
+
+  case PatchingBarrierRelocationFormatGetStateBeforeLdrX:
+    // In ZGC, this is the same as a MarkBadBeforeMov mask.
     return (uint16_t)ZPointerMarkBadMask;
 
   default:
@@ -895,13 +896,14 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     // We only need to patch the immediate to be the correct one depending on the phase.
     change_immediate(*patch_addr, value, 19, 23);
     break;
-  case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
-    // Effectively change the instruction to a mov tmpRegister, immediate.
+  case PatchingBarrierRelocationFormatGetStateBeforeLdrX:
+    // Effectively change the instruction to a mov tmpRegister, #mask.
     // These are encoded as different instructions on aarch64, so the whole upper instruction has to be changed.
-    change_instruction(*patch_addr, 0x52800000u);
-    // Patch the MOV to move an immediate instead of a register.
-    // The value to be patched is the immediate. Re-use the stored register.
-    // This only updates the actual immediate.
+    // First, this is a mov x0, #0. The first 5 bits are the destination registers for both ldrb/ldrw, and mov. 
+    // Hence, at this point, the instruction is mov tmpRegister, #0.
+    change_instruction(*patch_addr, 0xd2800000u);
+    // Now, the immediate value is changed to the correct mask.
+    // This only updates the actual immediate, not the instruction or registers.
     change_immediate(*patch_addr, value, 5, 20);
     break;
   default:

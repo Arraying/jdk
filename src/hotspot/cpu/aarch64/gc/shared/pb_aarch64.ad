@@ -42,9 +42,6 @@ static void pb_uncolor(MacroAssembler* masm, const MachNode* node, Register ref)
 
 static void pb_keep_alive_load_barrier(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
   __ block_comment("weak patched barrier start");
-  __ block_comment("here we are mocking a ZGC patch");
-  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatMarkBadBeforeMov);
-  __ mov(tmp, ref);
   __ block_comment("weak patched barrier end");
   __ relocate(barrier_Relocation::spec(), ZBarrierRelocationFormatMarkBadBeforeMov);
   __ movzw(tmp, barrier_Relocation::unpatched);
@@ -92,19 +89,33 @@ static void pb_load_weak(MacroAssembler* masm, const MachNode* node, Address ref
   // Exclude the barrier code from the instruction counter heuristic.
   Assembler::InlineSkippedInstructionsCounter skipped_counter(masm);
   __ block_comment("pb_load_weak START");
-  // First, we determine where the SATB value will be in memory in G1. We will override this in all other GC.
+  // First, we determine where the SATB value will be in memory in G1.
   Address in_progress(rthread, in_bytes(G1ThreadLocalData::satb_mark_queue_active_offset()));
-  // We now write the instruction that loads the memory into the buffer. Technically this is a mov for most GC,
-  // although we write a ldrb (G1 default). This makes life a little bit easier.
-  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatMarkBadBeforeMov);
-  __ ldrb(tmp, in_progress);
-  __ tst(ref, tmp);
+  // Prepare all of the slow paths.
+  PatchingBarrierSlowPathPackageC2 pack = PatchingBarrierSetAssembler::slow_path_c2(masm, node, ref_addr, ref);
   ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
-  __ br(Assembler::NE, *stub->entry());
+  assert(pack._z_entry, "null z entry");
+  assert(pack._z_continuation, "null z cont");
+
+  // This is the G1 address, but all other GC will set this to a mov with immediate 0.
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatGetStateBeforeLdrX);
+  // lrdb tmp, address or ldrw tmp, address
+  __ ldrb(tmp, in_progress);
+  // G1 barrier, take the branch if SATB is active. Will never trigger for the other GC.
+  // __ cbnzw(tmp, *pack._g1_entry);
+  __ block_comment("yeet");
+
+  // For ZGC, load the current mask. All other GC will use the default setting.
+  // This will always be equal for other GC.
+  __ tst(ref, tmp);
+  // Z barrier, take branch if the pointer needs to be fixed. Will never trigger for the other GC.
+  __ br(Assembler::NE, *pack._z_entry);
+
   // WARN: remove.
   pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_weak END");
-  __ bind(*stub->continuation());
+  // We have to bind all of the stubs.
+  __ bind(*pack._z_continuation);
 }
 
 static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
@@ -122,7 +133,8 @@ static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address r
   __ tbz(ref, barrier_Relocation::unpatched, good);
   // At this point, we need to do some fixups and take the ZGC slow path.
   __ b(*stub->entry());
-  __ bind(good);  
+  __ bind(good);
+
   // WARN: remove.
   pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_strong END");
