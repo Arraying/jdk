@@ -891,14 +891,12 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     change_immediate(*patch_addr, value, 5, 20);
     break;
   case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
-    // Patch the TB(N)Z to use a different address register (ZR) for non-ZGC.
-    // On ZGC the value to be patched is the immediate.
-    //change_immediate(*patch_addr, value, 19, 23);
-    // THIS IS WHAT SERIAL AND PARALLEL NEED TO DO:
-    change_immediate(*patch_addr, 31u, 0, 4);
+    // For a TB(N)Z, the target register is already correct (the address register).
+    // We only need to patch the immediate to be the correct one depending on the phase.
+    change_immediate(*patch_addr, value, 19, 23);
     break;
   case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
-    // Effectively changes from a mov tmpRegister, addressRegister to a mov tmpRegister, immediate.
+    // Effectively change the instruction to a mov tmpRegister, immediate.
     // These are encoded as different instructions on aarch64, so the whole upper instruction has to be changed.
     change_instruction(*patch_addr, 0x52800000u);
     // Patch the MOV to move an immediate instead of a register.

@@ -21,3 +21,14 @@
  * questions.
  */
 
+#include "gc/shared/patchingBarrierSetAssembler.hpp"
+#include "gc/z/zBarrierSetAssembler_aarch64.hpp"
+
+PatchingBarrierSlowPathPackage PatchingBarrierSetAssembler::slow_path_c2(MacroAssembler* masm, 
+                                                                         const MachNode *node,
+                                                                         Address ref_addr,
+                                                                         Register ref) {
+  ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
+  masm->b(*stub->entry());
+  return {NULL, stub->continuation()};
+}

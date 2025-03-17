@@ -53,7 +53,7 @@ void G1NMethod::patch_barriers(address addr, int format) {
     change_immediate(*patch_addr, 31u, 0, 4);
     break;
   case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
-    assert(false, "weak g1 patch not implemented yet");
+    // By default, this contains the values for G1, so we do not need to patch anything.
     break;
   default:
     ShouldNotReachHere();
