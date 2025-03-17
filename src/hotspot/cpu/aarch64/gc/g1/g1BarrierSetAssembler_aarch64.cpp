@@ -123,7 +123,7 @@ static void generate_pre_barrier_fast_path(MacroAssembler* masm,
   }
 }
 
-static void generate_pre_barrier_slow_path(MacroAssembler* masm,
+void G1BarrierSetAssembler::generate_pre_barrier_slow_path(MacroAssembler* masm,
                                            const Register obj,
                                            const Register pre_val,
                                            const Register thread,

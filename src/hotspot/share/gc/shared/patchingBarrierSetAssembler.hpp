@@ -43,7 +43,10 @@ public:
   static PatchingBarrierSlowPathPackageC2 slow_path_c2(MacroAssembler* masm,
                                                      const MachNode* node,
                                                      Address ref_addr,
-                                                     Register ref);
+                                                     Register ref,
+                                                     Register tmp1,
+                                                     Register tmp2,
+                                                     Register tmp3);
 };
 
 #include CPU_HEADER(gc/shared/patchingBarrierSetAssembler)

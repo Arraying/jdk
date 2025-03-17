@@ -85,29 +85,36 @@ static void pb_load_barrier(MacroAssembler* masm, const MachNode* node, Address 
   __ bind(*stub->continuation());
 }
 
-static void pb_load_weak(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+static void pb_load_weak(MacroAssembler* masm, 
+                         const MachNode* node, 
+                         Address ref_addr,
+                         Register ref,
+                         Register tmp1,
+                         Register tmp2,
+                         Register tmp3) {
   // Exclude the barrier code from the instruction counter heuristic.
   Assembler::InlineSkippedInstructionsCounter skipped_counter(masm);
   __ block_comment("pb_load_weak START");
   // First, we determine where the SATB value will be in memory in G1.
   Address in_progress(rthread, in_bytes(G1ThreadLocalData::satb_mark_queue_active_offset()));
   // Prepare all of the slow paths.
-  PatchingBarrierSlowPathPackageC2 pack = PatchingBarrierSetAssembler::slow_path_c2(masm, node, ref_addr, ref);
-  ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
-  assert(pack._z_entry, "null z entry");
-  assert(pack._z_continuation, "null z cont");
+  PatchingBarrierSlowPathPackageC2 pack = PatchingBarrierSetAssembler::slow_path_c2(masm, node, ref_addr, ref, tmp1, tmp2, tmp3);
+
+  // Register allocation:
+  // tmp1: the register in which we load "the thing to test". Callee saved.
+  // tmp2, tmp2: G1 temp registers for slow path, also callee saved.
 
   // This is the G1 address, but all other GC will set this to a mov with immediate 0.
   __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatGetStateBeforeLdrX);
   // lrdb tmp, address or ldrw tmp, address
-  __ ldrb(tmp, in_progress);
+  __ ldrb(tmp1, in_progress);
   // G1 barrier, take the branch if SATB is active. Will never trigger for the other GC.
-  // __ cbnzw(tmp, *pack._g1_entry);
+  __ cbnzw(tmp1, *pack._g1_entry);
   __ block_comment("yeet");
 
   // For ZGC, load the current mask. All other GC will use the default setting.
   // This will always be equal for other GC.
-  __ tst(ref, tmp);
+  __ tst(ref, tmp1);
   // Z barrier, take branch if the pointer needs to be fixed. Will never trigger for the other GC.
   __ br(Assembler::NE, *pack._z_entry);
 
@@ -115,10 +122,15 @@ static void pb_load_weak(MacroAssembler* masm, const MachNode* node, Address ref
   pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_weak END");
   // We have to bind all of the stubs.
+  __ bind(*pack._g1_continuation);
   __ bind(*pack._z_continuation);
 }
 
-static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+static void pb_load_strong(MacroAssembler* masm, 
+                           const MachNode* node, 
+                           Address ref_addr, 
+                           Register ref,
+                           Register tmp) {
   // Exclude the barrier code from instruction counter heuristic.
   Assembler::InlineSkippedInstructionsCounter skipped_counter(masm);
   __ block_comment("pb_load_strong START");
@@ -142,27 +154,33 @@ static void pb_load_strong(MacroAssembler* masm, const MachNode* node, Address r
 }
 
 // This writes the correct barrier for the correct load type (strong vs weak).
-static void pb_dispatch(MacroAssembler* masm, const MachNode* node, Address ref_addr, Register ref, Register tmp) {
+static void pb_dispatch(MacroAssembler* masm, 
+                        const MachNode* node, 
+                        Address ref_addr, 
+                        Register ref,
+                        Register tmp1,
+                        Register tmp2,
+                        Register tmp3) {
   // The barrier data holds what type of reference it is. In this case, a weak reference is either a weak or phantom reference, which are both set with bitmasks.
   const bool on_non_strong =
       ((node->barrier_data() & PatchingBarrierWeak) != 0) ||
       ((node->barrier_data() & PatchingBarrierPhantom) != 0);
   if (on_non_strong) {
     // Weak load barrier.
-    pb_load_weak(masm, node, ref_addr, ref, tmp);
+    pb_load_weak(masm, node, ref_addr, ref, tmp1, tmp2, tmp3);
   } else {
-    // Strong load barrier.
-    pb_load_strong(masm, node, ref_addr, ref, tmp);
+    // Strong load barrier, only needs one temporary register.
+    pb_load_strong(masm, node, ref_addr, ref, tmp1);
   }
 }
 
 %}
 
-instruct zPBLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
+instruct zPBLoadP(iRegPNoSp dst, memory8 mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   match(Set dst (LoadP mem));
   predicate((UseZGC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
-  effect(TEMP dst, KILL cr);
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
 
   ins_cost(4 * INSN_COST);
 
@@ -177,17 +195,17 @@ instruct zPBLoadP(iRegPNoSp dst, memory8 mem, rFlagsReg cr)
       ref_addr = __ legitimize_address(ref_addr, 8, rscratch2);
     }
     __ ldr($dst$$Register, ref_addr);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, rscratch1);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
   %}
 
   ins_pipe(iload_reg_mem);
 %}
 
-instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, rFlagsReg cr)
+instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   match(Set dst (LoadP mem));
   predicate((UseZGC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
-  effect(TEMP dst, KILL cr);
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
 
   ins_cost(VOLATILE_REF_COST);
 
@@ -196,7 +214,7 @@ instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, rFlagsR
   ins_encode %{
     const Address ref_addr = Address($mem$$Register);
     __ ldar($dst$$Register, $mem$$Register);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, rscratch1);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
   %}
 
   ins_pipe(pipe_serial);
@@ -205,7 +223,7 @@ instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, rFlagsR
 // TODO: LoadP for G1GC.
 
 
-instruct g1PBLoadNCVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   predicate((UseG1GC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
   match(Set dst (LoadN mem));
@@ -215,7 +233,8 @@ instruct g1PBLoadNCVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNo
   ins_encode %{
     const Address ref_addr = Address($mem$$Register);
     __ ldrw($dst$$Register, $mem$$Register);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, rscratch1);
+    __ decode_heap_oop($tmp1$$Register, $dst$$Register);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
   %}
   ins_pipe(iload_reg_mem);
 %}
