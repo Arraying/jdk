@@ -31,14 +31,16 @@
 #include "gc/z/zBarrierSetAssembler.hpp"
 
 // Workaround to copy labels around without issue.
-struct PatchingBarrierSlowPathPackage {
+struct PatchingBarrierSlowPathPackageC2 {
+  Label* _g1_entry;
+  Label* _z_entry;
   Label* _g1_continuation;
   Label* _z_continuation;
 };
 
 class PatchingBarrierSetAssembler : AllStatic {
 public:
-  static PatchingBarrierSlowPathPackage slow_path_c2(MacroAssembler* masm,
+  static PatchingBarrierSlowPathPackageC2 slow_path_c2(MacroAssembler* masm,
                                                      const MachNode* node,
                                                      Address ref_addr,
                                                      Register ref);

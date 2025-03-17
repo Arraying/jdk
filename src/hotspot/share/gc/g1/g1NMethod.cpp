@@ -52,7 +52,7 @@ void G1NMethod::patch_barriers(address addr, int format) {
     // FIXME: Uses AArch64 assumption, would be good to factor out to own platform-dependent code.
     change_immediate(*patch_addr, 31u, 0, 4);
     break;
-  case PatchingBarrierRelocationFormatMarkBadBeforeMov: 
+  case PatchingBarrierRelocationFormatGetStateBeforeLdrX: 
     // By default, this contains the values for G1, so we do not need to patch anything.
     break;
   default:

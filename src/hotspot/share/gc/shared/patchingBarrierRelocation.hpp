@@ -24,8 +24,8 @@
 #ifndef SHARE_GC_SHARED_PATCHINGBARRIERRELOCATION_HPP
 #define SHARE_GC_SHARED_PATCHINGBARRIERRELOCATION_HPP
 
-const int PatchingBarrierRelocationFormatLoadGoodBeforeTbX  = 4; // strong, used to be TbX
-const int PatchingBarrierRelocationFormatMarkBadBeforeMov   = 5; // weak
+const int PatchingBarrierRelocationFormatLoadGoodBeforeTbX   = 4; // strong
+const int PatchingBarrierRelocationFormatGetStateBeforeLdrX  = 5; // weak
 
 
 #endif // SHARE_GC_SHARED_PATCHINGBARRIERRELOCATION_HPP
