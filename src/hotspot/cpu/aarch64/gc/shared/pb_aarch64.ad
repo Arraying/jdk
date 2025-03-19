@@ -102,7 +102,7 @@ static void pb_load_weak(MacroAssembler* masm,
 
   // Register allocation:
   // tmp1: the register in which we load "the thing to test". Callee saved.
-  // tmp2, tmp2: G1 temp registers for slow path, also callee saved.
+  // tmp2, tmp3: G1 temp registers for slow path, also callee saved.
 
   // This is the G1 address, but all other GC will set this to a mov with immediate 0.
   __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatGetStateBeforeLdrX);
@@ -110,16 +110,17 @@ static void pb_load_weak(MacroAssembler* masm,
   __ ldrb(tmp1, in_progress);
   // G1 barrier, take the branch if SATB is active. Will never trigger for the other GC.
   __ cbnzw(tmp1, *pack._g1_entry);
-  __ block_comment("yeet");
 
   // For ZGC, load the current mask. All other GC will use the default setting.
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatMarkBadBeforeMov);
+  __ movzw(tmp1, barrier_Relocation::unpatched);
   // This will always be equal for other GC.
   __ tst(ref, tmp1);
   // Z barrier, take branch if the pointer needs to be fixed. Will never trigger for the other GC.
   __ br(Assembler::NE, *pack._z_entry);
 
   // WARN: remove.
-  pb_uncolor(masm, node, ref);
+  //pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_weak END");
   // We have to bind all of the stubs.
   __ bind(*pack._g1_continuation);
@@ -148,7 +149,7 @@ static void pb_load_strong(MacroAssembler* masm,
   __ bind(good);
 
   // WARN: remove.
-  pb_uncolor(masm, node, ref);
+  //pb_uncolor(masm, node, ref);
   __ block_comment("pb_load_strong END");
   __ bind(*stub->continuation());
 }

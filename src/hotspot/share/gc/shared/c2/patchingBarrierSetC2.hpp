@@ -28,7 +28,7 @@
 #include "gc/g1/c2/g1BarrierSetC2.hpp"
 #include "gc/z/c2/zBarrierSetC2.hpp"
 
-class PatchingBarrierSetC2 : public ZBarrierSetC2 {
+class PatchingBarrierSetC2 : public G1BarrierSetC2 {
 protected:
   // The load emission itself, here the barrier data has to be populated.
   virtual Node* load_at_resolved(C2Access& access, const Type* val_type) const;

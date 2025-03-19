@@ -845,6 +845,9 @@ static uint16_t patch_barrier_relocation_value(int format) {
   case ZBarrierRelocationFormatMarkBadBeforeMov:
     return (uint16_t)ZPointerMarkBadMask;
 
+  case PatchingBarrierRelocationFormatMarkBadBeforeMov:
+    return (uint16_t)ZPointerMarkBadMask;
+
   case ZBarrierRelocationFormatStoreGoodBeforeMov:
     return (uint16_t)ZPointerStoreGoodMask;
 
@@ -888,6 +891,7 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     break;
   case ZBarrierRelocationFormatStoreGoodBeforeMov:
   case ZBarrierRelocationFormatMarkBadBeforeMov:
+  case PatchingBarrierRelocationFormatMarkBadBeforeMov:
   case ZBarrierRelocationFormatStoreBadBeforeMov:
     change_immediate(*patch_addr, value, 5, 20);
     break;
@@ -902,9 +906,6 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     // First, this is a mov x0, #0. The first 5 bits are the destination registers for both ldrb/ldrw, and mov. 
     // Hence, at this point, the instruction is mov tmpRegister, #0.
     change_instruction(*patch_addr, 0xd2800000u);
-    // Now, the immediate value is changed to the correct mask.
-    // This only updates the actual immediate, not the instruction or registers.
-    change_immediate(*patch_addr, value, 5, 20);
     break;
   default:
     ShouldNotReachHere();

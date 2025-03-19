@@ -55,6 +55,9 @@ void G1NMethod::patch_barriers(address addr, int format) {
   case PatchingBarrierRelocationFormatGetStateBeforeLdrX: 
     // By default, this contains the values for G1, so we do not need to patch anything.
     break;
+  case PatchingBarrierRelocationFormatMarkBadBeforeMov:
+    // This already moves a zero which will never trigger the ZGC slow path, no need to patch.
+    break;
   default:
     ShouldNotReachHere();
   }

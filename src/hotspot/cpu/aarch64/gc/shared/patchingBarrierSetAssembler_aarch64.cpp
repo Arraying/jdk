@@ -24,50 +24,27 @@
 #include "gc/shared/patchingBarrierSetAssembler.hpp"
 #include "gc/g1/c2/g1BarrierSetC2.hpp"
 #include "gc/g1/g1BarrierSetAssembler_aarch64.hpp"
-#include "gc/g1/g1BarrierSetRuntime.hpp"
 #include "gc/z/zBarrierSetAssembler_aarch64.hpp"
 
 PatchingBarrierSlowPathPackageC2 PatchingBarrierSetAssembler::slow_path_c2(MacroAssembler* masm, 
                                                                            const MachNode *node,
                                                                            Address ref_addr,
                                                                            Register ref,
-                                                                           Register tmp1,
-                                                                           Register tmp2,
-                                                                           Register tmp3) {
+                                                                           Register _tmp1,
+                                                                           Register _tmp2,
+                                                                           Register _tmp3) {
   // G1 slow path.
-  assert_different_registers(noreg, tmp1, tmp2, tmp3);
-  G1BarrierSetAssembler* g1_asm = static_cast<G1BarrierSetAssembler*>(BarrierSet::barrier_set()->barrier_set_assembler());
+  assert_different_registers(noreg, _tmp1, _tmp2, _tmp3);
   // Generate the G1 stubs, but here we may have to be careful about register preservation.
-  G1PreBarrierStubC2* const g1 = G1PreBarrierStubC2::create(node);  
-  g1->initialize_registers(noreg, tmp1, rthread, tmp2, tmp3);
-  // We need a G1 runtime call to jump to if the buffer is full.
-  Label runtime;
-  // We delegate the creation of the slow path.
-  G1BarrierSetAssembler::generate_pre_barrier_slow_path(masm, 
-                                                        g1->obj(), 
-                                                        g1->pre_val(), 
-                                                        g1->thread(), 
-                                                        g1->tmp1(), 
-                                                        g1->tmp2(), 
-                                                        *g1->continuation(), 
-                                                        runtime);
+  // We therefore alias the registers with their corresponding names in the G1 assembler.
+  // Consequently, e.g. tmp3 becomes tmp2, but this is simplifies understanding grealy.
+  G1PreBarrierStubC2* const g1 = G1PreBarrierStubC2::create(node);
+  Register obj = noreg, pre_val = _tmp1, thread = rthread, tmp1 = _tmp2, tmp2 = _tmp3;
+  g1->initialize_registers(obj, pre_val, thread, tmp1, tmp2);
 
-  masm->bind(runtime);
-  // For the runtime call, make a new scope such that the register saving/recovering works.
-  {
-    Register arg = g1->pre_val();
-    SaveLiveRegisters save_registers(masm, g1);
-    if (c_rarg0 != arg) {
-      masm->mov(c_rarg0, arg);
-    }
-    masm->mov(c_rarg1, rthread);
-    masm->mov(rscratch1, CAST_FROM_FN_PTR(address, G1BarrierSetRuntime::write_ref_field_pre_entry));
-    masm->blr(rscratch1);
-  }
-
-  // Generate the ZGC slow path, this takes care of preservations itself.
+  // Generate the ZGC slow path, this takes care of register preservations itself.
   ZLoadBarrierStubC2Aarch64* const z = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
-
+  
   // Pass on all of the labels and continuations.
   PatchingBarrierSlowPathPackageC2 pack {g1->entry(), z->entry(), g1->continuation(), z->continuation()};
   return pack;
