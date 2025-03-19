@@ -90,14 +90,6 @@ public:
                                 G1PostBarrierStubC2* c2_stub);
   void generate_c2_post_barrier_stub(MacroAssembler* masm,
                                      G1PostBarrierStubC2* stub) const;
-  static void generate_pre_barrier_slow_path(MacroAssembler* masm,
-                                             const Register obj,
-                                             const Register pre_val,
-                                             const Register thread,
-                                             const Register tmp1,
-                                             const Register tmp2,
-                                             Label& done,
-                                             Label& runtime);
 #endif
 
   void load_at(MacroAssembler* masm, DecoratorSet decorators, BasicType type,
