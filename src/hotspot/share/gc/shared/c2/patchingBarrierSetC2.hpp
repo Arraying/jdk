@@ -36,6 +36,54 @@ private:
   // Consolidated function that checks if the barrier is needed.
   static bool barrier_needed(DecoratorSet decorators, BasicType type);
   static void write_barrier_data(C2Access& access);
+public:
+  // Make sure to add the ZGC barrier set state.
+  virtual void* create_barrier_state(Arena* comp_arena) const;
+};
+
+// Basically a copy of that of ZGC.
+class PatchingBarrierSetC2State : public BarrierSetC2State {
+private:
+  GrowableArray<ZBarrierStubC2*>* _stubs;
+  int                             _trampoline_stubs_count;
+  int                             _stubs_start_offset;
+
+public:
+  PatchingBarrierSetC2State(Arena* arena)
+    : BarrierSetC2State(arena),
+      _stubs(new (arena) GrowableArray<ZBarrierStubC2*>(arena, 8,  0, nullptr)),
+      _trampoline_stubs_count(0),
+      _stubs_start_offset(0) {}
+
+  GrowableArray<ZBarrierStubC2*>* stubs() {
+    return _stubs;
+  }
+
+  bool needs_liveness_data(const MachNode* mach) const {
+    // Don't need liveness data for nodes without barriers
+    return mach->barrier_data() != ZBarrierElided;
+  }
+
+  bool needs_livein_data() const {
+    return true;
+  }
+
+  void inc_trampoline_stubs_count() {
+    assert(_trampoline_stubs_count != INT_MAX, "Overflow");
+    ++_trampoline_stubs_count;
+  }
+
+  int trampoline_stubs_count() {
+    return _trampoline_stubs_count;
+  }
+
+  void set_stubs_start_offset(int offset) {
+    _stubs_start_offset = offset;
+  }
+
+  int stubs_start_offset() {
+    return _stubs_start_offset;
+  }
 };
 
 const uint8_t PatchingBarrierStrong      =  1;
