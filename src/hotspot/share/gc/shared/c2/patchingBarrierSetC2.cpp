@@ -23,6 +23,7 @@
  */
 
 #include "gc/shared/c2/patchingBarrierSetC2.hpp"
+#include "gc/z/c2/zBarrierSetC2.hpp"
 
 // The high level of this load is to consolidate all of the processing done by all GC.
 Node* PatchingBarrierSetC2::load_at_resolved(C2Access& access, const Type* val_type) const {
@@ -75,5 +76,11 @@ void PatchingBarrierSetC2::write_barrier_data(C2Access& access) {
   }
 
   access.set_barrier_data(barrier_data);
+}
+
+// Initialize barrier state to be that of ZGC.
+
+void* PatchingBarrierSetC2::create_barrier_state(Arena* comp_arena) const {
+  return new (comp_arena) PatchingBarrierSetC2State(comp_arena);
 }
 

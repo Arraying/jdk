@@ -242,3 +242,33 @@ instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoS
 
 // TODO: All of the loads for the other GC; they should fail right now since barrier_data != 0.
 // It would be better to match these and add a few assertions, just in case.
+
+// Load Compressed Pointer
+instruct cardTableLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+%{
+  match(Set dst (LoadN mem));
+  predicate((UseSerialGC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+
+  ins_cost(4 * INSN_COST);
+  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
+
+  //ins_encode(aarch64_enc_ldrw(dst, mem));
+
+  ins_encode %{
+    Address ref_addr = mem2address($mem->opcode(), as_Register($mem$$base), $mem$$index, $mem$$scale, $mem$$disp);
+    if (ref_addr.getMode() == Address::base_plus_offset) {
+      // Fix up any out-of-range offsets.
+      assert_different_registers(rscratch2, as_Register($mem$$base));
+      assert_different_registers(rscratch2, $dst$$Register);
+      ref_addr = __ legitimize_address(ref_addr, 8, rscratch2);
+    }
+    __ ldr($dst$$Register, ref_addr);
+    __ block_comment("serial narrow load start");
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
+    __ block_comment("serial narrow load end");
+  %}
+
+  ins_pipe(iload_reg_mem);
+%}
+
