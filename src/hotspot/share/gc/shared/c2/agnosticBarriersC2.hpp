@@ -29,10 +29,8 @@
 
 // THESE VALUES ARE AUTOMATICALLY UPDATED BY A SCRIPT.
 // DO NOT MODIFY!!!
-typedef PatchingBarrierSetC2 PossiblyAgnosticCardTableBarrierSetC2;
-typedef G1BarrierSetC2 PossiblyAgnosticG1BarrierSetC2;
-typedef ZBarrierSetC2 PossiblyAgnosticZBarrierSetC2;
-
+typedef PatchingCardTableBarrierSetC2 PossiblyAgnosticCardTableBarrierSetC2;
+typedef PatchingG1BarrierSetC2 PossiblyAgnosticG1BarrierSetC2;
+typedef PatchingZBarrierSetC2 PossiblyAgnosticZBarrierSetC2;
 
 #endif // SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
-

@@ -23,16 +23,9 @@
  */
 
 #include "gc/shared/c2/patchingBarrierSetC2.hpp"
-#include "gc/z/c2/zBarrierSetC2.hpp"
-
-// The high level of this load is to consolidate all of the processing done by all GC.
-Node* PatchingBarrierSetC2::load_at_resolved(C2Access& access, const Type* val_type) const {
-  write_barrier_data(access);
-  return BarrierSetC2::load_at_resolved(access, val_type);
-}
 
 // Copied basically from ZGC.
-bool PatchingBarrierSetC2::barrier_needed(DecoratorSet decorators, BasicType type) {
+bool PatchingBarrierSetC2Logic::barrier_needed(DecoratorSet decorators, BasicType type) {
   assert((decorators & AS_RAW) == 0, "Unexpected decorator");
 
   if (is_reference_type(type)) {
@@ -46,7 +39,7 @@ bool PatchingBarrierSetC2::barrier_needed(DecoratorSet decorators, BasicType typ
 }
 
 // Copied basically from ZGC.
-void PatchingBarrierSetC2::write_barrier_data(C2Access& access) {
+void PatchingBarrierSetC2Logic::write_barrier_data(C2Access& access) {
   if (!barrier_needed(access.decorators(), access.type())) {
     return;
   }
@@ -80,7 +73,7 @@ void PatchingBarrierSetC2::write_barrier_data(C2Access& access) {
 
 // Initialize barrier state to be that of ZGC.
 
-void* PatchingBarrierSetC2::create_barrier_state(Arena* comp_arena) const {
+void* PatchingCardTableBarrierSetC2::create_barrier_state(Arena* comp_arena) const {
   return new (comp_arena) PatchingBarrierSetC2State(comp_arena);
 }
 

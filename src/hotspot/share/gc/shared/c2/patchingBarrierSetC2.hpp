@@ -26,22 +26,43 @@
 
 #include "gc/shared/c2/cardTableBarrierSetC2.hpp"
 #include "gc/g1/c2/g1BarrierSetC2.hpp"
+#include "gc/shared/gc_globals.hpp"
 #include "gc/z/c2/zBarrierSetC2.hpp"
 
-class PatchingBarrierSetC2 : public CardTableBarrierSetC2 {
-protected:
-  // The load emission itself, here the barrier data has to be populated.
-  virtual Node* load_at_resolved(C2Access& access, const Type* val_type) const;
-private: 
+class PatchingBarrierSetC2Logic : public AllStatic {
+private:
   // Consolidated function that checks if the barrier is needed.
   static bool barrier_needed(DecoratorSet decorators, BasicType type);
-  static void write_barrier_data(C2Access& access);
 public:
-  // Make sure to add the ZGC barrier set state.
-  virtual void* create_barrier_state(Arena* comp_arena) const;
+  // Writes barrier data for a C2 write.
+  static void write_barrier_data(C2Access& access);
 };
 
-// Basically a copy of that of ZGC.
+// The ZGC implementation.
+class PatchingZBarrierSetC2 : public ZBarrierSetC2 {
+protected:
+  virtual Node* load_at_resolved(C2Access& access, const Type* val_type) const {
+    if (UseLoadPB) {
+      PatchingBarrierSetC2Logic::write_barrier_data(access);
+      return BarrierSetC2::load_at_resolved(access, val_type);
+    }
+    return ZBarrierSetC2::load_at_resolved(access, val_type);
+  }
+};
+
+// The G1 implementation.
+class PatchingG1BarrierSetC2 : public G1BarrierSetC2 {
+protected:
+  virtual Node* load_at_resolved(C2Access& access, const Type* val_type) const {
+    if (UseLoadPB) {
+      PatchingBarrierSetC2Logic::write_barrier_data(access);
+      return BarrierSetC2::load_at_resolved(access, val_type);
+    }
+    return G1BarrierSetC2::load_at_resolved(access, val_type);
+  }
+};
+
+// Serial & Parallel need some state for stub emission.
 class PatchingBarrierSetC2State : public BarrierSetC2State {
 private:
   GrowableArray<ZBarrierStubC2*>* _stubs;
@@ -84,6 +105,21 @@ public:
   int stubs_start_offset() {
     return _stubs_start_offset;
   }
+};
+
+// The Serial & Parallel implementation.
+class PatchingCardTableBarrierSetC2 : public CardTableBarrierSetC2 {
+protected:
+  virtual Node* load_at_resolved(C2Access& access, const Type* val_type) const {
+    if (UseLoadPB) {
+      PatchingBarrierSetC2Logic::write_barrier_data(access);
+      return BarrierSetC2::load_at_resolved(access, val_type);
+    }
+    return CardTableBarrierSetC2::load_at_resolved(access, val_type);
+  }
+public:
+  // Need to inject custom state which doesn't exist yet since it's not late barrier expanded.
+  virtual void* create_barrier_state(Arena* comp_arena) const;
 };
 
 const uint8_t PatchingBarrierStrong      =  1;
