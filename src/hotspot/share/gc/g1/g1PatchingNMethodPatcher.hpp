@@ -21,19 +21,16 @@
  * questions.
  */
 
-#ifndef SHARE_GC_G1_G1NMETHOD_HPP
-#define SHARE_GC_G1_G1NMETHOD_HPP
+#ifndef SHARE_GC_G1_G1PATCHINGNMETHODPATCHER_HPP
+#define SHARE_GC_G1_G1PATCHINGNMETHODPATCHER_HPP
 
-#include "memory/iterator.hpp"
+#include "gc/shared/patchingNMethod.hpp"
 
 class nmethod;
-class NMethodClosure;
 
-class G1NMethod : public AllStatic {
-public:
-  static void register_nmethod(nmethod* nm);
-  static void patch_barriers(address addr, int format);
-  
+class G1PatchingNMethodPatcher : public PatchingNMethodPatcher {
+protected:
+  virtual void patch_instruction(address address, int format);
 };
 
-#endif // SHARE_GC_G1_G1NMETHOD_HPP
+#endif // SHARE_GC_G1_G1PATCHINGNMETHODPATCHER_HPP

@@ -21,18 +21,17 @@
  * questions.
  */
 
-#ifndef SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
-#define SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
+#include "gc/shared/patchingNMethod.hpp"
+#include "code/relocInfo.hpp"
 
-// Includes all the headers for the other barrier sets automatically.
-#include "gc/shared/c2/patchingBarrierSetC2.hpp"
-
-// THESE VALUES ARE AUTOMATICALLY UPDATED BY A SCRIPT.
-// DO NOT MODIFY!!!
-typedef PatchingBarrierSetC2 PossiblyAgnosticCardTableBarrierSetC2;
-typedef G1BarrierSetC2 PossiblyAgnosticG1BarrierSetC2;
-typedef ZBarrierSetC2 PossiblyAgnosticZBarrierSetC2;
-
-
-#endif // SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
-
+void PatchingNMethod::register_nmethod(nmethod* nm, PatchingNMethodPatcher& patch) {
+  // Find all barrier relocations.
+  RelocIterator iter(nm);
+  while (iter.next()) {
+    if (iter.type() == relocInfo::barrier_type) {
+      barrier_Relocation* const reloc = iter.barrier_reloc();
+      // We can actually patch right now!
+      patch.patch_instruction(reloc->addr(), reloc->format());
+    }
+  }
+}

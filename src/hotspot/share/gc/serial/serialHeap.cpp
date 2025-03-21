@@ -36,6 +36,7 @@
 #include "gc/serial/serialVMOperations.hpp"
 #include "gc/serial/tenuredGeneration.inline.hpp"
 #include "gc/shared/cardTableBarrierSet.hpp"
+#include "gc/shared/cardTablePatchingNMethodPatcher.hpp"
 #include "gc/shared/classUnloadingContext.hpp"
 #include "gc/shared/collectedHeap.inline.hpp"
 #include "gc/shared/collectorCounters.hpp"
@@ -495,6 +496,8 @@ bool SerialHeap::do_young_collection(bool clear_soft_refs) {
 
 void SerialHeap::register_nmethod(nmethod* nm) {
   ScavengableNMethods::register_nmethod(nm);
+  CardTablePatchingNMethodPatcher patcher;
+  PatchingNMethod::register_nmethod(nm, patcher);
 }
 
 void SerialHeap::unregister_nmethod(nmethod* nm) {

@@ -21,36 +21,16 @@
  * questions.
  */
 
-#include "gc/g1/g1NMethod.hpp"
-#include "code/relocInfo.hpp"
+#include "gc/g1/g1PatchingNMethodPatcher.hpp"
 #include "gc/shared/patchingBarrierRelocation.hpp"
 
-void G1NMethod::register_nmethod(nmethod* nm) {
-  // Find all barrier relocations.
-  RelocIterator iter(nm);
-  while (iter.next()) {
-    if (iter.type() == relocInfo::barrier_type) {
-      barrier_Relocation* const reloc = iter.barrier_reloc();
-      // We can actually patch right now!
-      G1NMethod::patch_barriers(reloc->addr(), reloc->format());
-    }
-  }
-}
-
-static void change_immediate(uint32_t& instr, uint32_t imm, uint32_t start, uint32_t end) {
-  uint32_t imm_mask = ((1u << start) - 1u) ^ ((1u << (end + 1)) - 1u);
-  instr &= ~imm_mask;
-  instr |= imm << start;
-}
-
-void G1NMethod::patch_barriers(address addr, int format) {
+void G1PatchingNMethodPatcher::patch_instruction(address addr, int format) {
   uint32_t* const patch_addr = (uint32_t*)addr;
   switch (format) {
   case PatchingBarrierRelocationFormatLoadGoodBeforeTbX:
-    // Patch the TB(N)Z to use a different address register (ZR) for non-ZGC.
-    // Since this is G1, we patch accordingly.
-    // FIXME: Uses AArch64 assumption, would be good to factor out to own platform-dependent code.
-    change_immediate(*patch_addr, 31u, 0, 4);
+    // Replace the register with WZR. Since this register 31 is all 1s, a logical OR works.
+    // The register is written in the lowest 5 bits of the instruction, so no shift is needed.
+    *addr |= 31u;
     break;
   case PatchingBarrierRelocationFormatGetStateBeforeLdrX: 
     // By default, this contains the values for G1, so we do not need to patch anything.
