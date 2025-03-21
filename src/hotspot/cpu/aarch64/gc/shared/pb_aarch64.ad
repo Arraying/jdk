@@ -120,7 +120,10 @@ static void pb_load_weak(MacroAssembler* masm,
   __ br(Assembler::NE, *pack._z_entry);
 
   // WARN: remove.
-  //pb_uncolor(masm, node, ref);
+  if (UseZGC) {
+    pb_uncolor(masm, node, ref);
+  }
+
   __ block_comment("pb_load_weak END");
   // We have to bind all of the stubs.
   __ bind(*pack._g1_continuation);
@@ -149,7 +152,10 @@ static void pb_load_strong(MacroAssembler* masm,
   __ bind(good);
 
   // WARN: remove.
-  //pb_uncolor(masm, node, ref);
+  if (UseZGC) {
+    pb_uncolor(masm, node, ref);
+  }
+
   __ block_comment("pb_load_strong END");
   __ bind(*stub->continuation());
 }
