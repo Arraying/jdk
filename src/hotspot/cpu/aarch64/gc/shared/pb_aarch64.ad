@@ -177,6 +177,10 @@ static void pb_dispatch(MacroAssembler* masm,
 
 %}
 
+//
+// ZGC
+//
+
 instruct zPBLoadP(iRegPNoSp dst, memory8 mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   match(Set dst (LoadP mem));
@@ -221,10 +225,11 @@ instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, iRegPNo
   ins_pipe(pipe_serial);
 %}
 
-// TODO: LoadP for G1GC.
+//
+// G1
+//
 
-
-instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+instruct g1PBLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   predicate((UseG1GC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
   match(Set dst (LoadN mem));
@@ -240,11 +245,33 @@ instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoS
   ins_pipe(iload_reg_mem);
 %}
 
-// Load Compressed Pointer
+instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+%{
+  predicate((UseG1GC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  match(Set dst (LoadN mem));
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+  ins_cost(VOLATILE_REF_COST);
+  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
+  ins_encode %{
+    const Address ref_addr = Address($mem$$Register);
+    __ ldarw($dst$$Register, $mem$$Register);
+    __ decode_heap_oop($tmp1$$Register, $dst$$Register);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
+  %}
+  ins_pipe(iload_reg_mem);
+%}
+
+
+// TODO: Introduce LoadP.
+
+//
+// Serial & Parallel
+//
+
 instruct cardTableLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
 %{
   match(Set dst (LoadN mem));
-  predicate((UseSerialGC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  predicate((UseSerialGC || UseParallelGC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
   effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
 
   ins_cost(4 * INSN_COST);
@@ -259,3 +286,23 @@ instruct cardTableLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp t
   ins_pipe(iload_reg_mem);
 %}
 
+instruct cardTableLoadNVolatile(iRegNNoSp dst, /* sync_memory*/indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+%{
+  match(Set dst (LoadN mem));
+  predicate((UseSerialGC || UseParallelGC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() == 0);
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+
+  ins_cost(VOLATILE_REF_COST);
+  format %{ "ldarw  $dst, $mem\t# compressed ptr" %}
+
+  //ins_encode(aarch64_enc_ldarw(dst, mem));
+  ins_encode %{
+    const Address ref_addr = Address($mem$$Register);
+    __ ldarw($dst$$Register, $mem$$Register);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
+  %}
+
+  ins_pipe(pipe_serial);
+%}
+
+// TODO: Introduce LoadP.
