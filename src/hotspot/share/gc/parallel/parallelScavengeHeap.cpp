@@ -32,6 +32,7 @@
 #include "gc/parallel/psPromotionManager.hpp"
 #include "gc/parallel/psScavenge.hpp"
 #include "gc/parallel/psVMOperations.hpp"
+#include "gc/shared/cardTablePatchingNMethodPatcher.hpp"
 #include "gc/shared/fullGCForwarding.inline.hpp"
 #include "gc/shared/gcHeapSummary.hpp"
 #include "gc/shared/gcLocker.inline.hpp"
@@ -804,6 +805,8 @@ void ParallelScavengeHeap::complete_loaded_archive_space(MemRegion archive_space
 
 void ParallelScavengeHeap::register_nmethod(nmethod* nm) {
   ScavengableNMethods::register_nmethod(nm);
+  CardTablePatchingNMethodPatcher patcher;
+  PatchingNMethod::register_nmethod(nm, patcher);
 }
 
 void ParallelScavengeHeap::unregister_nmethod(nmethod* nm) {

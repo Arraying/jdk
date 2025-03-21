@@ -55,7 +55,7 @@
 #include "gc/g1/g1InitLogger.hpp"
 #include "gc/g1/g1MemoryPool.hpp"
 #include "gc/g1/g1MonotonicArenaFreeMemoryTask.hpp"
-#include "gc/g1/g1NMethod.hpp"
+#include "gc/g1/g1PatchingNMethodPatcher.hpp"
 #include "gc/g1/g1OopClosures.inline.hpp"
 #include "gc/g1/g1ParallelCleaning.hpp"
 #include "gc/g1/g1ParScanThreadState.inline.hpp"
@@ -2993,7 +2993,8 @@ void G1CollectedHeap::register_nmethod(nmethod* nm) {
   guarantee(nm != nullptr, "sanity");
   RegisterNMethodOopClosure reg_cl(this, nm);
   nm->oops_do(&reg_cl);
-  G1NMethod::register_nmethod(nm);
+  G1PatchingNMethodPatcher patcher;
+  PatchingNMethod::register_nmethod(nm, patcher);
 }
 
 void G1CollectedHeap::unregister_nmethod(nmethod* nm) {

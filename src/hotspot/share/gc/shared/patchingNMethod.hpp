@@ -21,18 +21,22 @@
  * questions.
  */
 
-#ifndef SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
-#define SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
+#ifndef SHARE_GC_SHARED_PATCHINGNMETHOD_HPP
+#define SHARE_GC_SHARED_PATCHINGNMETHOD_HPP
 
-// Includes all the headers for the other barrier sets automatically.
-#include "gc/shared/c2/patchingBarrierSetC2.hpp"
+#include "memory/iterator.hpp"
 
-// THESE VALUES ARE AUTOMATICALLY UPDATED BY A SCRIPT.
-// DO NOT MODIFY!!!
-typedef PatchingBarrierSetC2 PossiblyAgnosticCardTableBarrierSetC2;
-typedef G1BarrierSetC2 PossiblyAgnosticG1BarrierSetC2;
-typedef ZBarrierSetC2 PossiblyAgnosticZBarrierSetC2;
+class nmethod;
 
+class PatchingNMethodPatcher {
+friend class PatchingNMethod;
+protected:
+  virtual void patch_instruction(address address, int format) = 0;
+};
 
-#endif // SHARE_GC_SHARED_C2_AGNOSTICBARRIERSC2_HPP
+class PatchingNMethod : public AllStatic {
+public:
+  static void register_nmethod(nmethod* nm, PatchingNMethodPatcher& patcher); 
+};
 
+#endif // SHARE_GC_SHARED_PATCHINGNMETHOD_HPP
