@@ -29,6 +29,13 @@
 #include "gc/shared/gc_globals.hpp"
 #include "gc/z/c2/zBarrierSetC2.hpp"
 
+const uint8_t PatchingBarrierStrong      =  1;
+const uint8_t PatchingBarrierWeak        =  2;
+const uint8_t PatchingBarrierPhantom     =  4;
+const uint8_t PatchingBarrierNoKeepalive =  8;
+const uint8_t PatchingBarrierNative      = 16;
+const uint8_t PatchingBarrierElided      = 32;
+
 class PatchingBarrierSetC2Logic : public AllStatic {
 private:
   // Consolidated function that checks if the barrier is needed.
@@ -63,26 +70,27 @@ protected:
 };
 
 // Serial & Parallel need some state for stub emission.
+// This is done in the ZGC style.
 class PatchingBarrierSetC2State : public BarrierSetC2State {
 private:
-  GrowableArray<ZBarrierStubC2*>* _stubs;
-  int                             _trampoline_stubs_count;
-  int                             _stubs_start_offset;
+  GrowableArray<BarrierStubC2*>* _stubs;
+  int                            _trampoline_stubs_count;
+  int                            _stubs_start_offset;
 
 public:
   PatchingBarrierSetC2State(Arena* arena)
     : BarrierSetC2State(arena),
-      _stubs(new (arena) GrowableArray<ZBarrierStubC2*>(arena, 8,  0, nullptr)),
+      _stubs(new (arena) GrowableArray<BarrierStubC2*>(arena, 8,  0, nullptr)),
       _trampoline_stubs_count(0),
       _stubs_start_offset(0) {}
 
-  GrowableArray<ZBarrierStubC2*>* stubs() {
+  GrowableArray<BarrierStubC2*>* stubs() {
     return _stubs;
   }
 
   bool needs_liveness_data(const MachNode* mach) const {
     // Don't need liveness data for nodes without barriers
-    return mach->barrier_data() != ZBarrierElided;
+    return mach->barrier_data() != PatchingBarrierElided;
   }
 
   bool needs_livein_data() const {
@@ -120,14 +128,9 @@ protected:
 public:
   // Need to inject custom state which doesn't exist yet since it's not late barrier expanded.
   virtual void* create_barrier_state(Arena* comp_arena) const;
+  // Manually emit stubs, since currently this is a no-op.
+  virtual void emit_stubs(CodeBuffer& cb) const;
 };
-
-const uint8_t PatchingBarrierStrong      =  1;
-const uint8_t PatchingBarrierWeak        =  2;
-const uint8_t PatchingBarrierPhantom     =  4;
-const uint8_t PatchingBarrierNoKeepalive =  8;
-const uint8_t PatchingBarrierNative      = 16;
-//const uint8_t PatchingBarrierElided      = 32;
 
 
 

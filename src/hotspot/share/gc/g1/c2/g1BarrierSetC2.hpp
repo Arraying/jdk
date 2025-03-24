@@ -38,7 +38,6 @@ const int G1C2BarrierPostNotNull = 4;
 class G1BarrierStubC2 : public BarrierStubC2 {
 public:
   G1BarrierStubC2(const MachNode* node);
-  virtual void emit_code(MacroAssembler& masm) = 0;
 };
 
 class G1PreBarrierStubC2 : public G1BarrierStubC2 {
