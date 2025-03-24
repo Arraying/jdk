@@ -374,14 +374,14 @@ Node* G1BarrierSetC2::atomic_xchg_at_resolved(C2AtomicParseAccess& access, Node*
 
 class G1BarrierSetC2State : public BarrierSetC2State {
 private:
-  GrowableArray<G1BarrierStubC2*>* _stubs;
+  GrowableArray<BarrierStubC2*>* _stubs;
 
 public:
   G1BarrierSetC2State(Arena* arena)
     : BarrierSetC2State(arena),
-      _stubs(new (arena) GrowableArray<G1BarrierStubC2*>(arena, 8,  0, nullptr)) {}
+      _stubs(new (arena) GrowableArray<BarrierStubC2*>(arena, 8,  0, nullptr)) {}
 
-  GrowableArray<G1BarrierStubC2*>* stubs() {
+  GrowableArray<BarrierStubC2*>* stubs() {
     return _stubs;
   }
 
@@ -592,7 +592,7 @@ void G1BarrierSetC2::late_barrier_analysis() const {
 
 void G1BarrierSetC2::emit_stubs(CodeBuffer& cb) const {
   MacroAssembler masm(&cb);
-  GrowableArray<G1BarrierStubC2*>* const stubs = barrier_set_state()->stubs();
+  GrowableArray<BarrierStubC2*>* const stubs = barrier_set_state()->stubs();
   for (int i = 0; i < stubs->length(); i++) {
     // Make sure there is enough space in the code buffer
     if (cb.insts()->maybe_expand_to_ensure_remaining(PhaseOutput::MAX_inst_size) && cb.blob() == nullptr) {

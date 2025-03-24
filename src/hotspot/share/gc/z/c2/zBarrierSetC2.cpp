@@ -119,18 +119,18 @@ typedef ZArenaHashtable<intptr_t, bool, 4> ZOffsetTable;
 
 class ZBarrierSetC2State : public BarrierSetC2State {
 private:
-  GrowableArray<ZBarrierStubC2*>* _stubs;
+  GrowableArray<BarrierStubC2*>* _stubs;
   int                             _trampoline_stubs_count;
   int                             _stubs_start_offset;
 
 public:
   ZBarrierSetC2State(Arena* arena)
     : BarrierSetC2State(arena),
-      _stubs(new (arena) GrowableArray<ZBarrierStubC2*>(arena, 8,  0, nullptr)),
+      _stubs(new (arena) GrowableArray<BarrierStubC2*>(arena, 8,  0, nullptr)),
       _trampoline_stubs_count(0),
       _stubs_start_offset(0) {}
 
-  GrowableArray<ZBarrierStubC2*>* stubs() {
+  GrowableArray<BarrierStubC2*>* stubs() {
     return _stubs;
   }
 
@@ -307,7 +307,7 @@ void ZBarrierSetC2::late_barrier_analysis() const {
 
 void ZBarrierSetC2::emit_stubs(CodeBuffer& cb) const {
   MacroAssembler masm(&cb);
-  GrowableArray<ZBarrierStubC2*>* const stubs = barrier_set_state()->stubs();
+  GrowableArray<BarrierStubC2*>* const stubs = barrier_set_state()->stubs();
   barrier_set_state()->set_stubs_start_offset(masm.offset());
 
   for (int i = 0; i < stubs->length(); i++) {
@@ -326,7 +326,7 @@ void ZBarrierSetC2::emit_stubs(CodeBuffer& cb) const {
 int ZBarrierSetC2::estimate_stub_size() const {
   Compile* const C = Compile::current();
   BufferBlob* const blob = C->output()->scratch_buffer_blob();
-  GrowableArray<ZBarrierStubC2*>* const stubs = barrier_set_state()->stubs();
+  GrowableArray<BarrierStubC2*>* const stubs = barrier_set_state()->stubs();
   int size = 0;
 
   for (int i = 0; i < stubs->length(); i++) {
