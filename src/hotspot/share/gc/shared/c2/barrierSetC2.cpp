@@ -1185,7 +1185,7 @@ void BarrierSetC2::compute_liveness_at_stubs() const {
       const Node* const node = block->get_node(i);
 
       // If this node tracks out-liveness, update it
-      if (!bs_state->needs_livein_data()) {
+      if (!bs_state->needs_livein_data() || UseLoadPB) {
         RegMask* const regs = bs_state->live(node);
         if (regs != nullptr) {
           regs->OR(new_live);
@@ -1216,7 +1216,7 @@ void BarrierSetC2::compute_liveness_at_stubs() const {
       }
 
       // If this node tracks in-liveness, update it
-      if (bs_state->needs_livein_data()) {
+      if (bs_state->needs_livein_data() || UseLoadPB) {
         RegMask* const regs = bs_state->live(node);
         if (regs != nullptr) {
           regs->OR(new_live);

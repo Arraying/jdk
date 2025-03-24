@@ -23,6 +23,7 @@
  */
 
 #include "gc/shared/c2/patchingBarrierSetC2.hpp"
+#include "opto/output.hpp"
 
 // Copied basically from ZGC.
 bool PatchingBarrierSetC2Logic::barrier_needed(DecoratorSet decorators, BasicType type) {
@@ -77,3 +78,26 @@ void* PatchingCardTableBarrierSetC2::create_barrier_state(Arena* comp_arena) con
   return new (comp_arena) PatchingBarrierSetC2State(comp_arena);
 }
 
+
+static PatchingBarrierSetC2State* barrier_set_state() {
+  return reinterpret_cast<PatchingBarrierSetC2State*>(Compile::current()->barrier_set_state());
+}
+
+// Stub emission!
+void PatchingCardTableBarrierSetC2::emit_stubs(CodeBuffer& cb) const {
+  MacroAssembler masm(&cb);
+  GrowableArray<BarrierStubC2*>* const stubs = barrier_set_state()->stubs();
+  barrier_set_state()->set_stubs_start_offset(masm.offset());
+
+  for (int i = 0; i < stubs->length(); i++) {
+    // Make sure there is enough space in the code buffer
+    if (cb.insts()->maybe_expand_to_ensure_remaining(PhaseOutput::MAX_inst_size) && cb.blob() == nullptr) {
+      ciEnv::current()->record_failure("CodeCache is full");
+      return;
+    }
+
+    stubs->at(i)->emit_code(masm);
+  }
+
+  masm.flush();
+}

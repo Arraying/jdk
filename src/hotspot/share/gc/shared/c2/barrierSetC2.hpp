@@ -263,6 +263,8 @@ public:
   void dont_preserve(Register reg);
   // Set of registers whose value needs to be preserved across runtime calls in this barrier.
   const RegMask& preserve_set() const;
+  // With late barrier expansion, gain the ability to emit stubs late.
+  virtual void emit_code(MacroAssembler& masm) = 0;
 };
 
 // This is the top-level class for the backend of the Access API in C2.
