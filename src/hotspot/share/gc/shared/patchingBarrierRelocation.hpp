@@ -27,6 +27,7 @@
 const int PatchingBarrierRelocationFormatLoadGoodBeforeTbX   = 4; // strong
 const int PatchingBarrierRelocationFormatGetStateBeforeLdrX  = 5; // weak, G1
 const int PatchingBarrierRelocationFormatMarkBadBeforeMov    = 6; // weak, Z
+const int PatchingBarrierRelocationFormatShiftLsr            = 7; // all
 
 
 #endif // SHARE_GC_SHARED_PATCHINGBARRIERRELOCATION_HPP

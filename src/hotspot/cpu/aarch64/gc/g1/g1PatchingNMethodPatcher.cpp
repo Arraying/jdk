@@ -38,6 +38,9 @@ void G1PatchingNMethodPatcher::patch_instruction(address addr, int format) {
   case PatchingBarrierRelocationFormatMarkBadBeforeMov:
     // This already moves a zero which will never trigger the ZGC slow path, no need to patch.
     break;
+  case PatchingBarrierRelocationFormatShiftLsr:
+    // This is a no-op.
+    break;
   default:
     ShouldNotReachHere();
   }

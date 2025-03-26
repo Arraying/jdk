@@ -862,6 +862,9 @@ static uint16_t patch_barrier_relocation_value(int format) {
     // In ZGC, this is the same as a MarkBadBeforeMov mask.
     return (uint16_t)ZPointerMarkBadMask;
 
+  case PatchingBarrierRelocationFormatShiftLsr:
+    return (uint16_t)ZPointerLoadShift;
+
   default:
     ShouldNotReachHere();
     return 0;
@@ -907,6 +910,10 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
     // First, this is a mov x0, #0. The first 5 bits are the destination registers for both ldrb/ldrw, and mov. 
     // Hence, at this point, the instruction is mov tmpRegister, #0.
     change_instruction(*patch_addr, 0xd2800000u);
+    break;
+  case PatchingBarrierRelocationFormatShiftLsr:
+    // Here we have to shift by the correct amount.
+    change_immediate(*patch_addr, value, 16, 21);
     break;
   default:
     ShouldNotReachHere();

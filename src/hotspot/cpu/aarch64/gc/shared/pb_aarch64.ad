@@ -37,7 +37,10 @@ source %{
 #include "gc/shared/patchingBarrierRelocation.hpp"
 
 static void pb_uncolor(MacroAssembler* masm, const MachNode* node, Register ref) {
-  __ lsr(ref, ref, ZPointerLoadShift);
+  // Perform a left shift on the 64-bit value. This will be patched by ZGC to be the correct offset.
+  // Otherwise, we are running without compression so this is a no-op.
+  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatShiftLsr);
+  __ lsr(ref, ref, barrier_Relocation::unpatched);
 }
 
 static void pb_load_weak(MacroAssembler* masm, 
@@ -74,10 +77,8 @@ static void pb_load_weak(MacroAssembler* masm,
   // Z barrier, take branch if the pointer needs to be fixed. Will never trigger for the other GC.
   __ br(Assembler::NE, *pack._z_entry);
 
-  // WARN: remove.
-  if (UseZGC) {
-    pb_uncolor(masm, node, ref);
-  }
+  // If running ZGC, this will handle compression.
+  pb_uncolor(masm, node, ref);
 
   __ block_comment("pb_load_weak END");
   // We have to bind all of the stubs.
@@ -106,10 +107,8 @@ static void pb_load_strong(MacroAssembler* masm,
   __ b(*stub->entry());
   __ bind(good);
 
-  // WARN: remove.
-  if (UseZGC) {
-    pb_uncolor(masm, node, ref);
-  }
+  // If running ZGC, this will handle compression.
+  pb_uncolor(masm, node, ref);
 
   __ block_comment("pb_load_strong END");
   __ bind(*stub->continuation());
@@ -136,6 +135,48 @@ static void pb_dispatch(MacroAssembler* masm,
   }
 }
 
+%}
+
+//
+// Two matching blocks to rule them all (+ volatile/nonvolatile)!
+// We have LoadP for uncompressed archives, and LoadN for compressed archives.
+//
+
+instruct patchingBarrierLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+%{
+  predicate((UseSerialGC || UseParallelGC || UseG1GC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  match(Set dst (LoadN mem));
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+
+  ins_cost(4 * INSN_COST); 
+  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
+
+  ins_encode %{
+    const Address ref_addr = Address($mem$$Register);
+    __ ldrw($dst$$Register, $mem$$Register);
+    __ decode_heap_oop($tmp1$$Register, $dst$$Register);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
+  %}
+
+  ins_pipe(iload_reg_mem);
+%}
+
+instruct patchingBarrierLoadNVolatile(iRegNNoSp dst, indirect mem /* sync_memory */, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
+%{
+  predicate((UseSerialGC || UseParallelGC || UseG1GC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
+  match(Set dst (LoadN mem));
+  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
+
+  ins_cost(VOLATILE_REF_COST);
+  format %{ "ldarw  $dst, $mem\t# compressed ptr" %}
+
+  ins_encode %{
+    const Address ref_addr = Address($mem$$Register);
+    __ ldarw($dst$$Register, $mem$$Register);
+    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
+  %}
+
+  ins_pipe(pipe_serial);
 %}
 
 //
@@ -186,84 +227,3 @@ instruct zPBLoadPVolatile(iRegPNoSp dst, indirect mem /* sync_memory */, iRegPNo
   ins_pipe(pipe_serial);
 %}
 
-//
-// G1
-//
-
-instruct g1PBLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
-%{
-  predicate((UseG1GC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
-  match(Set dst (LoadN mem));
-  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
-  ins_cost(4 * INSN_COST);
-  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
-  ins_encode %{
-    const Address ref_addr = Address($mem$$Register);
-    __ ldrw($dst$$Register, $mem$$Register);
-    __ decode_heap_oop($tmp1$$Register, $dst$$Register);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
-  %}
-  ins_pipe(iload_reg_mem);
-%}
-
-instruct g1PBLoadNVolatile(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
-%{
-  predicate((UseG1GC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
-  match(Set dst (LoadN mem));
-  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
-  ins_cost(VOLATILE_REF_COST);
-  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
-  ins_encode %{
-    const Address ref_addr = Address($mem$$Register);
-    __ ldarw($dst$$Register, $mem$$Register);
-    __ decode_heap_oop($tmp1$$Register, $dst$$Register);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
-  %}
-  ins_pipe(iload_reg_mem);
-%}
-
-
-// TODO: Introduce LoadP.
-
-//
-// Serial & Parallel
-//
-
-instruct cardTableLoadN(iRegNNoSp dst, indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
-%{
-  match(Set dst (LoadN mem));
-  predicate((UseSerialGC || UseParallelGC) && UseLoadPB && !needs_acquiring_load(n) && n->as_Load()->barrier_data() != 0);
-  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
-
-  ins_cost(4 * INSN_COST);
-  format %{ "ldrw  $dst, $mem\t# compressed ptr" %}
-
-  ins_encode %{
-    const Address ref_addr = Address($mem$$Register);
-    __ ldrw($dst$$Register, ref_addr);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
-  %}
-
-  ins_pipe(iload_reg_mem);
-%}
-
-instruct cardTableLoadNVolatile(iRegNNoSp dst, /* sync_memory*/indirect mem, iRegPNoSp tmp1, iRegPNoSp tmp2, iRegPNoSp tmp3, rFlagsReg cr)
-%{
-  match(Set dst (LoadN mem));
-  predicate((UseSerialGC || UseParallelGC) && UseLoadPB && needs_acquiring_load(n) && n->as_Load()->barrier_data() == 0);
-  effect(TEMP dst, TEMP tmp1, TEMP tmp2, TEMP tmp3, KILL cr);
-
-  ins_cost(VOLATILE_REF_COST);
-  format %{ "ldarw  $dst, $mem\t# compressed ptr" %}
-
-  //ins_encode(aarch64_enc_ldarw(dst, mem));
-  ins_encode %{
-    const Address ref_addr = Address($mem$$Register);
-    __ ldarw($dst$$Register, $mem$$Register);
-    pb_dispatch(masm, this, ref_addr, $dst$$Register, $tmp1$$Register, $tmp2$$Register, $tmp3$$Register);
-  %}
-
-  ins_pipe(pipe_serial);
-%}
-
-// TODO: Introduce LoadP.
