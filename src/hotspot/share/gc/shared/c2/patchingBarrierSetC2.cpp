@@ -44,9 +44,11 @@ void PatchingBarrierSetC2Logic::write_barrier_data(C2Access& access) {
   if (!barrier_needed(access.decorators(), access.type())) {
     return;
   }
-  // Normally ZGC checks if it's a C2_TIGHTLY_COUPLED_ALLOC.
-  // If that's the case, it elides the barrier.
-  // For simplicity, barrier elidation has been disabled.
+
+  if (access.decorators() & C2_TIGHTLY_COUPLED_ALLOC) {
+    access.set_barrier_data(ZBarrierElided);
+    return;
+  }
 
   uint8_t barrier_data = 0;
 

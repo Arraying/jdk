@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "gc/shared/c2/patchingBarrierSetC2.hpp"
 #include "precompiled.hpp"
 #include "asm/macroAssembler.hpp"
 #include "classfile/javaClasses.hpp"
@@ -139,7 +140,8 @@ public:
 
   bool needs_liveness_data(const MachNode* mach) const {
     // Don't need liveness data for nodes without barriers
-    return mach->barrier_data() != ZBarrierElided;
+    return UseLoadPB ? mach->barrier_data() != PatchingBarrierElided
+                     : mach->barrier_data() != ZBarrierElided;
   }
 
   bool needs_livein_data() const {

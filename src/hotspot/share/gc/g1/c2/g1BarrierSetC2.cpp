@@ -22,6 +22,7 @@
  *
  */
 
+#include "gc/shared/c2/patchingBarrierSetC2.hpp"
 #include "precompiled.hpp"
 #include "classfile/javaClasses.hpp"
 #include "code/vmreg.inline.hpp"
@@ -387,8 +388,9 @@ public:
   }
 
   bool needs_liveness_data(const MachNode* mach) const {
-    return G1PreBarrierStubC2::needs_barrier(mach) ||
-           G1PostBarrierStubC2::needs_barrier(mach);
+    return UseLoadPB ? mach->barrier_data() != PatchingBarrierElided
+                     : G1PreBarrierStubC2::needs_barrier(mach) ||
+                        G1PostBarrierStubC2::needs_barrier(mach);
   }
 
   bool needs_livein_data() const {
