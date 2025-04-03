@@ -23,13 +23,8 @@
 
 #include "gc/shared/patchingNMethod.hpp"
 #include "code/relocInfo.hpp"
-#include "runtime/mutexLocker.hpp"
-
-extern Mutex* PatchingNMethod_lock;
 
 void PatchingNMethod::register_nmethod(nmethod* nm, PatchingNMethodPatcher& patch) {
-  // We need to lock to ensure there is no race condition to patch.
-  MutexLocker lock(PatchingNMethod_lock, Mutex::_no_safepoint_check_flag);
   // Find all barrier relocations.
   RelocIterator iter(nm);
   while (iter.next()) {

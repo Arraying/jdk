@@ -496,8 +496,10 @@ bool SerialHeap::do_young_collection(bool clear_soft_refs) {
 
 void SerialHeap::register_nmethod(nmethod* nm) {
   ScavengableNMethods::register_nmethod(nm);
-  CardTablePatchingNMethodPatcher patcher;
-  PatchingNMethod::register_nmethod(nm, patcher);
+  if (UseLoadPB) {
+    CardTablePatchingNMethodPatcher patcher;
+    PatchingNMethod::register_nmethod(nm, patcher);
+  }
 }
 
 void SerialHeap::unregister_nmethod(nmethod* nm) {

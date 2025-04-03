@@ -2976,8 +2976,10 @@ void G1CollectedHeap::register_nmethod(nmethod* nm) {
   guarantee(nm != nullptr, "sanity");
   RegisterNMethodOopClosure reg_cl(this, nm);
   nm->oops_do(&reg_cl);
-  G1PatchingNMethodPatcher patcher;
-  PatchingNMethod::register_nmethod(nm, patcher);
+  if (UseLoadPB) {
+    G1PatchingNMethodPatcher patcher;
+    PatchingNMethod::register_nmethod(nm, patcher);
+  }
 }
 
 void G1CollectedHeap::unregister_nmethod(nmethod* nm) {
