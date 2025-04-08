@@ -23,6 +23,8 @@
 
 #include "gc/shared/patchingNMethod.hpp"
 #include "code/relocInfo.hpp"
+#include "runtime/icache.hpp"
+#include "runtime/orderAccess.hpp"
 
 void PatchingNMethod::register_nmethod(nmethod* nm, PatchingNMethodPatcher& patch) {
   // Find all barrier relocations.
@@ -32,6 +34,9 @@ void PatchingNMethod::register_nmethod(nmethod* nm, PatchingNMethodPatcher& patc
       barrier_Relocation* const reloc = iter.barrier_reloc();
       // We can actually patch right now!
       patch.patch_instruction(reloc->addr(), reloc->format());
+      // For every patch, there needs to be a fence and a cache invalidation.
+      OrderAccess::fence();
+      ICache::invalidate_word(reloc->addr());
     }
   }
 }
