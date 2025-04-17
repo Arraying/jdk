@@ -109,16 +109,23 @@ static void pb_load_strong(MacroAssembler* masm,
 
   // There is only one slow path, which belongs to ZGC. Prepare the stub.
   ZLoadBarrierStubC2Aarch64* const stub = ZLoadBarrierStubC2Aarch64::create(node, ref_addr, ref);
-  // We will assume the worst case scenario where a test is not reachable.
-  Label good;
   // We have to check if we need to do any fixups in ZGC. This should be a no-op for the other GCs.
-  // tbz xzr, #imm, good
+  // tb(n)z xzr, #imm, good
   // The relocation indicates to ZGC to patch the immediate to the correct mask.
-  __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatLoadGoodBeforeTbX);
-  __ tbz(ref, barrier_Relocation::unpatched, good);
-  // At this point, we need to do some fixups and take the ZGC slow path.
-  __ b(*stub->entry());
-  __ bind(good);
+  // Enable trampolining like in ZGC.
+  if (stub->is_test_and_branch_reachable()) {
+    // The normal case where the stub is reachable within a tbnz.
+    __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatLoadGoodBeforeTbX);
+    __ tbnz(ref, barrier_Relocation::unpatched, *stub->entry());
+  } else {
+    // We will assume the worst case scenario where a test is not reachable.
+    Label good;
+    __ relocate(barrier_Relocation::spec(), PatchingBarrierRelocationFormatLoadGoodBeforeTbX);
+    __ tbz(ref, barrier_Relocation::unpatched, good);
+    // Trampoline, boink!
+    __ b(*stub->entry());
+    __ bind(good);
+  }
 
   // If running ZGC, this will handle compression.
   // This will never get called on narrow oops.
